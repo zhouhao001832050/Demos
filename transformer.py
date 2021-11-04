@@ -357,6 +357,7 @@ if __name__ == "__main__":
     print("predicting:")
     enc_inputs, _, _ = next(iter(loader))
     for i in range(len(enc_inputs)):
+        # import pdb;pdb.set_trace()
         greedy_dec_input = greedy_decoder(model, enc_inputs[i].view(1, -1), start_symbol=tgt_vocab["S"])
         predict, _, _, _ = model(enc_inputs[i].view(1, -1), greedy_dec_input)
         predict = predict.data.max(1, keepdim=True)[1]
