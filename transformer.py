@@ -82,6 +82,7 @@ def get_attn_pad_mask(seq_q, seq_k):
     batch_size, len_q = seq_q.size()
     batch_size, len_k = seq_k.size()
     # eq(zero) is PAD token
+    # import pdb;pdb.set_trace()
     pad_attn_mask = seq_k.data.eq(0).unsqueeze(1)
     return pad_attn_mask.expand(batch_size, len_q, len_k) # [batch_size, len_q, len_k]
 
@@ -106,8 +107,10 @@ class ScaledDotProductAttention(nn.Module):
         attn_mask: [batch_size, n_heads, seq_len, seq_len]
         '''
         scores = torch.matmul(Q, K.transpose(-1, -2)) / np.sqrt(d_k) # scores: [batch_size, n_heads, len_q, len_k]
+        # import pdb;pdb.set_trace()
         scores.masked_fill_(attn_mask, -1e9) # Fills elements of self tensor with value where mask is True
         attn = nn.Softmax(dim=-1)(scores)
+        
         context = torch.matmul(attn, V)  # [batch_size, n_heads, len_q, d_v]
         return context, attn
 
@@ -133,7 +136,6 @@ class MultiHeadAttention(nn.Module):
         print(f"input_K: {input_K.size()}")
         K = self.W_K(input_K).view(batch_size, -1, n_heads, d_k).transpose(1,2)  # K: [batch_size, n_heads, len_k, d_k]
         V = self.W_V(input_V).view(batch_size, -1, n_heads, d_v).transpose(1,2)  # V: [batch_size, n_heads, len_v(=len_k), d_v]
-
         attn_mask = attn_mask.unsqueeze(1).repeat(1, n_heads, 1, 1) # attn_mask : [batch_size, n_heads, seq_len, seq_len]
 
         # context: [batch_size, n_heads, len_q, d_v], attn: [batch_size, n_heads, len_q, len_k]
@@ -249,10 +251,10 @@ class Decoder(nn.Module):
         self.pos_emb = nn.Embedding.from_pretrained(get_sinusoid_encoding_table(tgt_vocab_size, d_model),freeze=True)
         self.layers = nn.ModuleList([DecoderLayer() for _ in range(n_layers)])
 
-    def forward(self, dec_intputs, enc_inputs, enc_outputs):
+    def forward(self, dec_inputs, enc_inputs, enc_outputs):
         """
         dec_inputs: [batch_size, tgt_len]
-        enc_intputs: [batch_size, src_len]
+        enc_inputs: [batch_size, src_len]
         enc_outputs: [batch_size, src_len, d_model]
         """
         word_emb = self.tgt_emb(dec_inputs) # [batch_size, tgt_len, d_model]
@@ -292,14 +294,13 @@ class Transformer(nn.Module):
         dec_logits = self.projection(dec_outputs) # dec_logits: [batch_size, tgt_len, tgt_vocab_size]
         return dec_logits.view(-1, dec_logits.size(-1)), enc_self_attns, dec_self_attns, dec_enc_attns
 
+
 """
 Transformer主要就是调用Encoder和Decoder。
 最后返回dec_logits的维度是[batch_size * tgt_len, tgt_vocab_size]，
 可以理解为，一个句子，这个句子有batch_size*tgt_len个单词，
 每个单词有tgt_vocab_size种情况，取概率最大者
 """
-
-
 def greedy_decoder(model, enc_input, start_symbol):
     """
     For simplicity, a Greedy Decoder is Beam search when K=1. This is necessary for inference as we don't know the
@@ -352,6 +353,7 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
     print("predicting:")
     enc_inputs, _, _ = next(iter(loader))
     for i in range(len(enc_inputs)):
